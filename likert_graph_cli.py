@@ -9,26 +9,103 @@ import pandas as pd
 from matplotlib.colors import to_rgba
 
 facecolor = "#f2f5fc"
+series_colors = ["#466384", "#869caf", "#e4af8e", "#d67242"]
+
+
+def contrasting_text_color(color):
+    """Calculate the contrasting text colour.
+
+    Uses euclidean distance between the facecolor and text colours
+    to determine if black or white is more contrasting.
+    """
+    color = np.array(color)
+    white = np.array(to_rgba("white"))
+    black = np.array(to_rgba("black"))
+    white_dist = np.linalg.norm(color - white)
+    black_dist = np.linalg.norm(color - black)
+    return white if white_dist > black_dist else black
+
+
+def plot_comparison(df, axis):
+    """Plot the comparison chart to the axis.
+
+    Color of the bar and text depends on whether it's agreeable or disagreeable.
+    """
+    if "comparison" in df:
+        # Separate negative and positive values so we can colour them differently
+        negative_comparison = df.mask(df["comparison"].ge(0), other=np.nan)[["comparison"]]
+        positive_comparison = df.mask(~df["comparison"].ge(0), other=np.nan)[["comparison"]]
+        if not negative_comparison.empty:
+            negative_comparison.plot(kind="barh", legend=False, align="center", width=0.2, ax=axis, color=series_colors[-1])
+        if not positive_comparison.empty:
+            positive_comparison.plot(kind="barh", legend=False, align="center", width=0.2, ax=axis, color=series_colors[0])
+    axis.invert_yaxis()
+    # Hide the grid and spine lines
+    axis.axis("off")
+    # Center chart around 0
+    axis.set_xlim(-1, 1)
+    # Display value
+    for rec in axis.patches:
+        width = rec.get_width()
+        if width == 0:
+            continue
+        text_color = series_colors[-1] if width < 0 else series_colors[0]
+        axis.text(
+            rec.get_x(),
+            rec.get_y() - rec.get_height(),
+            "{:.0f}".format(width * 100),
+            ha="center",
+            va="center",
+            color=text_color,
+            )
+
+
+def plot_results(df, axis, title):
+    df[[1, 2, 3, 4]].plot(
+        kind="barh",
+        stacked=True,
+        color=series_colors,
+        legend=True,
+        xlabel="",
+        fontsize=10,
+        ax=axis,
+        title=title,
+        edgecolor=facecolor,
+    )
+    # Add padding between question & graph
+    axis.tick_params(axis="y", which="major", pad=30)
+    # Put questions up the right way
+    axis.invert_yaxis()
+    # Show vertical grid bars
+    axis.grid(True, axis="x")
+    # Set vertical grid at 25% increments
+    start, end = axis.get_xlim()
+    axis.xaxis.set_ticks(np.arange(start, end, 0.25))
+    # Convert fractional values (0.1) to percentages (10%)
+    axis.xaxis.set_major_formatter(mtick.PercentFormatter(1.0))
+    # Set the location of the legend (default=best)
+    axis.legend(loc="best")
+    # Add value text on top of bar
+    for rec in axis.patches:
+        # Determine the best text colour to use
+        text_color = contrasting_text_color(rec.get_facecolor())
+        width = rec.get_width()
+        if width == 0:
+            continue
+        axis.text(
+            rec.get_x() + width / 2,
+            rec.get_y() + rec.get_height() / 2,
+            "{:.0f}%".format(width * 100),
+            ha="center",
+            va="center",
+            color=text_color,
+            )
 
 
 def generate_graph(df, title):
-    colors = ["#466384", "#869caf", "#e4af8e", "#d67242"]
-
-    def get_contrast_color(facecolor):
-        """Calculate the contrasting text colour.
-
-        Uses euclidean distance between the facecolor and text colours
-        to determine if black or white is more contrasting.
-        """
-        facecolor = np.array(facecolor)
-        white = np.array(to_rgba("white"))
-        black = np.array(to_rgba("black"))
-        white_dist = np.linalg.norm(facecolor - white)
-        black_dist = np.linalg.norm(facecolor - black)
-        return white if white_dist > black_dist else black
-
-    # Calculate the number of subplots based on our groups
+    # Two columns, one for results, one for comparison
     ncols = 2
+    # A row per group
     nrows = df.ngroups
     fig = plt.figure(figsize=(10, 30))
     gs = fig.add_gridspec(
@@ -45,88 +122,34 @@ def generate_graph(df, title):
 
     # Draw subplot for each group
     for (key, group), i in zip(df, range(df.ngroups)):
-        ax = group[[1, 2, 3, 4]].plot(
-            kind="barh",
-            stacked=True,
-            color=colors,
-            legend=True,
-            xlabel="",
-            fontsize=10,
-            ax=axes[i][0],
-            title=key,
-            edgecolor=facecolor,
-        )
-        # Add padding between question & graph
-        ax.tick_params(axis="y", which="major", pad=30)
-        # Put questions up the right way
-        ax.invert_yaxis()
-        # Show vertical grid bars
-        ax.grid(True, axis="x")
-        # Set vertical grid at 25% increments
-        start, end = ax.get_xlim()
-        ax.xaxis.set_ticks(np.arange(start, end, 0.25))
-        # Convert fractional values (0.1) to percentages (10%)
-        ax.xaxis.set_major_formatter(mtick.PercentFormatter(1.0))
-        # Set the location of the legend (default=best)
-        ax.legend(loc="best")
-        # Add value text on top of bar
-        for rec in ax.patches:
-            # Determine the best text colour to use
-            text_color = get_contrast_color(rec.get_facecolor())
-            width = rec.get_width()
-            if width == 0:
-                continue
-            ax.text(
-                rec.get_x() + width / 2,
-                rec.get_y() + rec.get_height() / 2,
-                "{:.0f}%".format(width * 100),
-                ha="center",
-                va="center",
-                color=text_color,
-            )
+        plot_results(group, axes[i][0], key)
+        plot_comparison(group, axes[i][1])
 
-        # Plot the comparisons
-        ax2 = axes[i][1]
-        if "comparison" in group:
-            # Seperate negative and positive values so we can colour them differently
-            negative_comparison = group.mask(group["comparison"].ge(0), other=np.nan)[["comparison"]]
-            positive_comparison = group.mask(~group["comparison"].ge(0), other=np.nan)[["comparison"]]
-            if not negative_comparison.empty:
-                negative_comparison.plot(kind="barh", legend=False, align="center", width=0.2, ax=ax2, color=colors[3])
-            if not positive_comparison.empty:
-                positive_comparison.plot(kind="barh", legend=False, align="center", width=0.2, ax=ax2, color=colors[0])
-        ax2.invert_yaxis()
-        # Hide the grid and spine lines
-        ax2.axis("off")
-        # Center chart around 0
-        ax2.set_xlim(-1, 1)
-        # Display value
-        for rec in ax2.patches:
-            width = rec.get_width()
-            if width == 0:
-                continue
-            text_color = colors[3] if width < 0 else colors[0]
-            ax2.text(
-                rec.get_x(),
-                rec.get_y() - rec.get_height(),
-                "{:.0f}".format(width * 100),
-                ha="center",
-                va="center",
-                color=text_color,
-            )
     return fig
 
 
-@click.command()
-@click.argument("input", type=click.File("rb"))
-@click.argument("output")
-def main(input, output):
-    group2 = "What Team are you currently working on?"
+def set_graph_style():
+    plt.style.use("default")
+    mpl.rc("axes", facecolor=facecolor)
+    mpl.rc("figure", facecolor=facecolor)
+    mpl.rc("axes.spines", left=False, bottom=False, top=False, right=False)
+    mpl.rc("xtick.major", size=0)
+    mpl.rc("ytick.major", size=0)
 
-    results = pd.read_csv(input)
+
+@click.command()
+@click.argument("_input", metavar="INPUT", type=click.File("rb"))
+@click.argument("output")
+def main(_input, output):
+    cohort_column = "What Team are you currently working on?"
+
+    # Load the data
+    results = pd.read_csv(_input)
     print(f"total respondents: {results.shape[0]}")
 
-    results = results.rename(columns={group2: "team"}).set_index("team").select_dtypes(include="number")
+    # Filter columns to just numeric
+    # TODO: add a values_columns param to filter on
+    results = results.rename(columns={cohort_column: "cohort"}).set_index("cohort").select_dtypes(include="number")
     results = pd.get_dummies(results.stack()).reset_index(level=0)
 
     # Create dataframe of question <-> group
@@ -157,16 +180,16 @@ def main(input, output):
     # Make question the index to match our data
     question_groups = (
         pd.DataFrame(question_groups.stack(), columns=["question"])
-        .rename_axis(index=["domain", "id"])
+        .rename_axis(index=["group", "id"])
         .reset_index(level=0)
         .set_index("question")
     )
     # Join to results
     results = (
         results.join(question_groups)
-        .fillna({"domain": ""})
+        .fillna({"group": ""})
         .rename_axis("question")
-        .set_index(["domain", "team"], append=True)
+        .set_index(["group", "cohort"], append=True)
         .swaplevel(0, 2)
     )
 
@@ -174,43 +197,37 @@ def main(input, output):
     aggregate = results.groupby(level=[1, 2]).sum()
     # Convert counts into percentages
     aggregate = aggregate.div(aggregate.sum(axis=1), axis=0)
-    # Calculate favourable score (sum of postitive responses)
-    aggregate["favourable"] = aggregate.iloc[:, 0:2].sum(axis=1)
+    # Calculate agreeable score (sum of postitive responses)
+    aggregate["agreeable"] = aggregate.iloc[:, 0:2].sum(axis=1)
 
     # Count occurrences of responses
     results = results.groupby(level=[0, 1, 2]).sum()
     # Convert counts into percentages
     results = results.div(results.sum(axis=1), axis=0)
-    # Calculate favourable score (sum of positive responses)
-    results["favourable"] = results.iloc[:, 0:2].sum(axis=1)
+    # Calculate agreeable score (sum of positive responses)
+    results["agreeable"] = results.iloc[:, 0:2].sum(axis=1)
     # Reverse order of columns
     # response_percent = response_percent.iloc[:, ::-1]
 
-    results = results.reset_index(level=0).join(aggregate[["favourable"]], rsuffix="_all")
-    results["comparison"] = results["favourable"] - results["favourable_all"]
+    results = results.reset_index(level=0).join(aggregate[["agreeable"]], rsuffix="_all")
+    results["comparison"] = results["agreeable"] - results["agreeable_all"]
 
     # Global figure styles
-    plt.style.use("default")
-    mpl.rc("axes", facecolor=facecolor)
-    mpl.rc("figure", facecolor=facecolor)
-    mpl.rc("axes.spines", left=False, bottom=False, top=False, right=False)
-    mpl.rc("xtick.major", size=0)
-    mpl.rc("ytick.major", size=0)
+    set_graph_style()
 
-    aggregate_groups = aggregate.groupby(level="domain", dropna=False)
-
-    fig = generate_graph(aggregate_groups, "All")
+    aggregate_by_group = aggregate.groupby(level="group", dropna=False)
+    fig = generate_graph(aggregate_by_group, "All")
     print(f"writing to {output}...")
     fig.savefig(output, bbox_inches="tight")
 
     (root, ext) = os.path.splitext(output)
-    by_team = results.groupby("team", dropna=False)
-    for (key, group), i in zip(by_team, range(1, by_team.ngroups + 1)):
+    by_cohort = results.groupby("cohort", dropna=False)
+    for (key, group), i in zip(by_cohort, range(1, by_cohort.ngroups + 1)):
         alt_output = f"{root}.{i}{ext}"
-        result_groups = group.groupby("domain", dropna=False)
+        by_group = group.groupby("group", dropna=False)
 
-        fig = generate_graph(result_groups, key)
-        print(f"writing {i} of {result_groups.ngroups} to {alt_output}...")
+        fig = generate_graph(by_group, key)
+        print(f"writing {i} of {by_cohort.ngroups} to {alt_output}...")
         fig.savefig(alt_output, bbox_inches="tight")
 
 
