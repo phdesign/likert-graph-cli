@@ -61,17 +61,18 @@ def plot_comparison(df, axis):
 
 
 def plot_results(df, axis, title):
-    df[[1, 2, 3, 4]].plot(
-        kind="barh",
-        stacked=True,
-        color=series_colors,
-        legend=True,
-        xlabel="",
-        fontsize=10,
-        ax=axis,
-        title=title,
-        edgecolor=facecolor,
-    )
+    df.drop(columns=["comparison", "agreeable", "agreeable_all"], errors="ignore")\
+        .plot(
+            kind="barh",
+            stacked=True,
+            color=series_colors,
+            legend=True,
+            xlabel="",
+            fontsize=10,
+            ax=axis,
+            title=title,
+            edgecolor=facecolor,
+        )
     # Add padding between question & graph
     axis.tick_params(axis="y", which="major", pad=30)
     # Put questions up the right way
@@ -122,6 +123,7 @@ def generate_graph(df, title):
 
     # Draw subplot for each group
     for (key, group), i in zip(df, range(df.ngroups)):
+        group = group.reset_index(level="group", drop=True)
         plot_results(group, axes[i][0], key)
         plot_comparison(group, axes[i][1])
 
@@ -142,17 +144,20 @@ def set_graph_style():
 @click.argument("output")
 def main(_input, output):
     cohort_column = "What Team are you currently working on?"
+    value_order = [1, 2, 3, 4]
+    has_question_groups = False
 
     # Load the data
-    results = pd.read_csv(_input)
+    header = [0, 1] if has_question_groups else [0]
+    results = pd.read_csv(_input, header=header)
     print(f"total respondents: {results.shape[0]}")
 
     # Filter columns to just numeric
-    # TODO: add a values_columns param to filter on
     results = results.rename(columns={cohort_column: "cohort"}).set_index("cohort").select_dtypes(include="number")
     results = pd.get_dummies(results.stack()).reset_index(level=0)
 
     # Create dataframe of question <-> group
+    # TODO: Externalise
     question_groups = pd.DataFrame.from_dict(
         {
             "Team Dynamics": ["Team Charter", "Cross functional", "Collaboration", "Optimising flow"],
@@ -215,7 +220,7 @@ def main(_input, output):
     # Global figure styles
     set_graph_style()
 
-    aggregate_by_group = aggregate.groupby(level="group", dropna=False)
+    aggregate_by_group = aggregate.groupby("group", dropna=False)
     fig = generate_graph(aggregate_by_group, "All")
     print(f"writing to {output}...")
     fig.savefig(output, bbox_inches="tight")
@@ -223,6 +228,7 @@ def main(_input, output):
     (root, ext) = os.path.splitext(output)
     by_cohort = results.groupby("cohort", dropna=False)
     for (key, group), i in zip(by_cohort, range(1, by_cohort.ngroups + 1)):
+        group = group.drop(columns="cohort")
         alt_output = f"{root}.{i}{ext}"
         by_group = group.groupby("group", dropna=False)
 
