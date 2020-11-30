@@ -139,22 +139,57 @@ def set_graph_style():
     mpl.rc("ytick.major", size=0)
 
 
+def sample_data(output):
+    columns = pd.MultiIndex.from_tuples([('Unnamed: 0_level_0', 'Team'),
+                                       ('Leadership', 'The leaders at my company keep people informed about what is happening'),
+                                       ('Leadership', 'My manager is a great role model for employees'),
+                                       ('Leadership', 'The leaders at my company have communicated a vision that motivates me'),
+                                       ('Enablement', 'I have access to the things I need to do my job well'),
+                                       ('Enablement', 'I have access to the learning and development I need to do my job well'),
+                                       ('Enablement', 'Most of the systems and processes here support us getting our work done effectively'),
+                                       ('Alignment', 'I know what I need to do to be successful in my role'),
+                                       ('Alignment', 'I receive appropriate recognition when I do good work'),
+                                       ('Alignment', 'Day-to-day decisions here demonstrate that quality and improvement are top priorities'),
+                                       ('Development', 'My manager (or someone in management) has shown a genuine interest in my career aspirations'),
+                                       ('Development', 'I believe there are good career opportunities for me at this company'),
+                                       ('Development', 'This is a great company for me to make a contribution to my development')])
+    df = pd.DataFrame(columns=columns)
+    for i in range(100):
+        df.loc[i] = np.append(np.random.choice(['Product Engineering', 'Data Engineering', 'Leadership', 'Customer Experience'], 1), np.random.randint(1, 5, size=(df.shape[1]-1)))
+    # df = df.set_index([('Unnamed: 0_level_0', 'Team')])
+    # print(df.xs('Team', axis=1, level=1, drop_level=False).iloc[:, 0])
+    # print(df.iloc[:, df.columns.get_level_values(1) == 'Team'])
+    # print(df.loc[:, (slice(None), 'Team')])
+    # print(df.columns[df.columns.get_level_values(1) == 'Team'][0])
+    # df = df.set_index(df.columns.get_locs([slice(None), 'Team'])[0])
+    # print(df.columns.get_locs([slice(None), 'Team']))
+
+    # df.set_index(df.xs('Team', axis=1, level=1, drop_level=False).iloc[:, 0])
+    # df = df.set_index(df.loc[:, (slice(None), 'Team')].iloc[:, 0])
+    # df = df.set_index(df.columns[df.columns.get_level_values(1) == 'Team'][0])
+    # print(df)
+    df.to_csv(output, index=False)
+    exit()
+
+
 @click.command()
 @click.argument("_input", metavar="INPUT", type=click.File("rb"))
 @click.argument("output")
-def main(_input, output):
-    cohort_column = "What Team are you currently working on?"
+@click.option('-c', '--cohort-column')
+@click.option('-g', '--has-groups', is_flag=True)
+def main(_input, output, cohort_column, has_groups):
     value_order = [1, 2, 3, 4]
-    has_question_groups = True
+
+    # sample_data(output)
 
     # Load the data
-    header = [0, 1] if has_question_groups else [0]
+    header = [0, 1] if has_groups else [0]
     results = pd.read_csv(_input, header=header)
     print(f"total respondents: {results.shape[0]}")
 
     # Filter columns to just numeric
     results = (
-        results.set_index([('Unnamed: 2_level_0', cohort_column)])
+        results.set_index(results.columns[results.columns.get_level_values(1) == cohort_column][0])
         .rename_axis('cohort')
         .select_dtypes(include="number")
     )
