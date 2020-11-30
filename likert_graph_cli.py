@@ -145,7 +145,7 @@ def set_graph_style():
 def main(_input, output):
     cohort_column = "What Team are you currently working on?"
     value_order = [1, 2, 3, 4]
-    has_question_groups = False
+    has_question_groups = True
 
     # Load the data
     header = [0, 1] if has_question_groups else [0]
@@ -153,50 +153,13 @@ def main(_input, output):
     print(f"total respondents: {results.shape[0]}")
 
     # Filter columns to just numeric
-    results = results.rename(columns={cohort_column: "cohort"}).set_index("cohort").select_dtypes(include="number")
-    results = pd.get_dummies(results.stack()).reset_index(level=0)
-
-    # Create dataframe of question <-> group
-    # TODO: Externalise
-    question_groups = pd.DataFrame.from_dict(
-        {
-            "Team Dynamics": ["Team Charter", "Cross functional", "Collaboration", "Optimising flow"],
-            "Vision and customer value": ["Vision and goals", "Success criteria", "Quality"],
-            "Planning & Tracking": ["Iterative development", "Forecasting", "Data-driven planning"],
-            "Continuous Delivery": ["Release cadence", "Confidence to release"],
-            "How we build Software": [
-                "Code quality",
-                "Depth of testing",
-                "Technical decisions",
-                "Security",
-                "Production health",
-            ],
-            "Continuous improvement and learning": ["Feedback", "Implemented improvement", "Team performance"],
-            "Living Guru Values": [
-                "Champion our customers",
-                "Own our outcomes",
-                "Learn all the things",
-                "Be hungry, stay humble",
-                "Keep it fun",
-            ],
-        },
-        orient="index",
-    )
-    # Make question the index to match our data
-    question_groups = (
-        pd.DataFrame(question_groups.stack(), columns=["question"])
-        .rename_axis(index=["group", "id"])
-        .reset_index(level=0)
-        .set_index("question")
-    )
-    # Join to results
     results = (
-        results.join(question_groups)
-        .fillna({"group": ""})
-        .rename_axis("question")
-        .set_index(["group", "cohort"], append=True)
-        .swaplevel(0, 2)
+        results.set_index([('Unnamed: 2_level_0', cohort_column)])
+        .rename_axis('cohort')
+        .select_dtypes(include="number")
     )
+    # Stack results -> count question by value
+    results = pd.get_dummies(results.stack(header)).rename_axis(["cohort", "group", "question"])
 
     # Create aggregate results
     aggregate = results.groupby(level=[1, 2]).sum()
