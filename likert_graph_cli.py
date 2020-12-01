@@ -123,6 +123,9 @@ def create_figure(subplot_rows, height, height_ratios, width_ratios, title):
 
 
 def create_graph(df, title):
+    # Height is calculated from number of quesitons + groups,
+    # this adjusts the weight of the height
+    height_adjustment = 0.8
     question_count = df.shape[0]
     width_ratios = ([0.8, 0.2] if "comparison" in df else [1, 0])
 
@@ -130,7 +133,7 @@ def create_graph(df, title):
         groups = df.groupby("_group", dropna=False)
         fig, axes = create_figure(
             subplot_rows=groups.ngroups,
-            height=question_count,
+            height=(question_count + groups.ngroups) * height_adjustment,
             height_ratios=groups.size().tolist(),
             width_ratios=width_ratios,
             title=title
@@ -142,7 +145,7 @@ def create_graph(df, title):
     else:
         fig, axes = create_figure(
             subplot_rows=1,
-            height=question_count,
+            height=question_count * height_adjustment,
             height_ratios=[1],
             width_ratios=width_ratios,
             title=title
