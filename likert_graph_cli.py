@@ -106,53 +106,49 @@ def plot_results(df, axis, title):
         )
 
 
-def generate_grouped_graph(df, title):
-    # Two columns, one for results, one for comparison
-    ncols = 2
-    # A row per group
-    nrows = df.ngroups
-    fig = plt.figure(figsize=(10, df.shape[0]))
+def create_figure(subplot_rows, height, height_ratios, width_ratios, title):
+    fig = plt.figure(figsize=(10, height))
     gs = fig.add_gridspec(
-        nrows=nrows,
-        ncols=ncols,
+        nrows=subplot_rows,  # Two columns, one for results, one for comparison
+        ncols=2,
         hspace=0.5,  # Vertical space between subplots
         wspace=0,
-        height_ratios=df.size().tolist(),
-        width_ratios=([0.8, 0.2] if "comparison" in df.count() else [1, 0]),
+        height_ratios=height_ratios,
+        width_ratios=width_ratios,
     )
     axes = gs.subplots(sharey="row")
     fig.subplots_adjust(top=0.95)
     fig.suptitle(title, fontsize=18)
-
-    # Draw subplot for each group
-    for (key, group), i in zip(df, range(df.ngroups)):
-        group = group.reset_index(level="group", drop=True)
-        plot_results(group, axes[i][0], key)
-        plot_comparison(group, axes[i][1])
-
-    return fig
+    return fig, axes
 
 
-def generate_graph(df, title):
-    # Two columns, one for results, one for comparison
-    ncols = 2
-    # A row per group
-    nrows = 1
-    fig = plt.figure(figsize=(10, df.shape[0]))
-    gs = fig.add_gridspec(
-        nrows=nrows,
-        ncols=ncols,
-        hspace=0.5,  # Vertical space between subplots
-        wspace=0,
-        height_ratios=[1],
-        width_ratios=([0.8, 0.2] if "comparison" in df.count() else [1, 0]),
-    )
-    axes = gs.subplots(sharey="row")
-    fig.subplots_adjust(top=0.95)
-    fig.suptitle(title, fontsize=18)
+def create_graph(df, title):
+    question_count = df.shape[0]
+    width_ratios = ([0.8, 0.2] if "comparison" in df else [1, 0])
 
-    plot_results(df, axes[0], None)
-    plot_comparison(df, axes[1])
+    if "group" in df.index.names:
+        groups = df.groupby("group", dropna=False)
+        fig, axes = create_figure(
+            subplot_rows=groups.ngroups,
+            height=question_count,
+            height_ratios=groups.size().tolist(),
+            width_ratios=width_ratios,
+            title=title
+        )
+        for (key, group), i in zip(groups, range(groups.ngroups)):
+            group = group.reset_index(level="group", drop=True)
+            plot_results(group, axes[i][0], key)
+            plot_comparison(group, axes[i][1])
+    else:
+        fig, axes = create_figure(
+            subplot_rows=1,
+            height=question_count,
+            height_ratios=[1],
+            width_ratios=width_ratios,
+            title=title
+        )
+        plot_results(df, axes[0], None)
+        plot_comparison(df, axes[1])
 
     return fig
 
@@ -204,6 +200,7 @@ def sample_data(output):
 @click.option("-g", "--has-groups", is_flag=True)
 def main(_input, output, cohort_column, has_groups):
     value_order = [1, 2, 3, 4]
+    # TODO: Option to alphabetise the question / group order
 
     # sample_data(output)
 
@@ -247,36 +244,19 @@ def main(_input, output, cohort_column, has_groups):
     # Global figure styles
     set_graph_style()
 
-    if has_groups:
-        aggregate_by_group = aggregate.groupby("group", dropna=False)
-        fig = generate_grouped_graph(aggregate_by_group, "All")
-        print(f"writing to {output}...")
-        fig.savefig(output, bbox_inches="tight")
+    fig = create_graph(aggregate, "All")
+    print(f"writing to {output}...")
+    fig.savefig(output, bbox_inches="tight")
 
-        (root, ext) = os.path.splitext(output)
-        by_cohort = results.groupby("cohort", dropna=False)
-        for (key, group), i in zip(by_cohort, range(1, by_cohort.ngroups + 1)):
-            group = group.drop(columns="cohort")
-            alt_output = f"{root}.{i}{ext}"
-            by_group = group.groupby("group", dropna=False)
+    (root, ext) = os.path.splitext(output)
+    by_cohort = results.groupby("cohort", dropna=False)
+    for (key, group), i in zip(by_cohort, range(1, by_cohort.ngroups + 1)):
+        group = group.drop(columns="cohort")
+        alt_output = f"{root}.{i}{ext}"
 
-            fig = generate_grouped_graph(by_group, key)
-            print(f"writing {i} of {by_cohort.ngroups} to {alt_output}...")
-            fig.savefig(alt_output, bbox_inches="tight")
-    else:
-        fig = generate_graph(aggregate, "All")
-        print(f"writing to {output}...")
-        fig.savefig(output, bbox_inches="tight")
-
-        (root, ext) = os.path.splitext(output)
-        by_cohort = results.groupby("cohort", dropna=False)
-        for (key, group), i in zip(by_cohort, range(1, by_cohort.ngroups + 1)):
-            group = group.drop(columns="cohort")
-            alt_output = f"{root}.{i}{ext}"
-
-            fig = generate_graph(group, key)
-            print(f"writing {i} of {by_cohort.ngroups} to {alt_output}...")
-            fig.savefig(alt_output, bbox_inches="tight")
+        fig = create_graph(group, key)
+        print(f"writing {i} of {by_cohort.ngroups} to {alt_output}...")
+        fig.savefig(alt_output, bbox_inches="tight")
 
 
 if __name__ == "__main__":
