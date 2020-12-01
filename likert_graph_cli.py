@@ -36,9 +36,13 @@ def plot_comparison(df, axis):
         negative_comparison = df.mask(df["comparison"].ge(0), other=np.nan)[["comparison"]]
         positive_comparison = df.mask(~df["comparison"].ge(0), other=np.nan)[["comparison"]]
         if not negative_comparison.empty:
-            negative_comparison.plot(kind="barh", legend=False, align="center", width=0.2, ax=axis, color=series_colors[-1])
+            negative_comparison.plot(
+                kind="barh", legend=False, align="center", width=0.2, ax=axis, color=series_colors[-1]
+            )
         if not positive_comparison.empty:
-            positive_comparison.plot(kind="barh", legend=False, align="center", width=0.2, ax=axis, color=series_colors[0])
+            positive_comparison.plot(
+                kind="barh", legend=False, align="center", width=0.2, ax=axis, color=series_colors[0]
+            )
     axis.invert_yaxis()
     # Hide the grid and spine lines
     axis.axis("off")
@@ -57,22 +61,21 @@ def plot_comparison(df, axis):
             ha="center",
             va="center",
             color=text_color,
-            )
+        )
 
 
 def plot_results(df, axis, title):
-    df.drop(columns=["comparison", "agreeable", "agreeable_all"], errors="ignore")\
-        .plot(
-            kind="barh",
-            stacked=True,
-            color=series_colors,
-            legend=True,
-            xlabel="",
-            fontsize=10,
-            ax=axis,
-            title=title,
-            edgecolor=facecolor,
-        )
+    df.drop(columns=["comparison", "agreeable", "agreeable_all"], errors="ignore").plot(
+        kind="barh",
+        stacked=True,
+        color=series_colors,
+        legend=True,
+        xlabel="",
+        fontsize=10,
+        ax=axis,
+        title=title,
+        edgecolor=facecolor,
+    )
     # Add padding between question & graph
     axis.tick_params(axis="y", which="major", pad=30)
     # Put questions up the right way
@@ -100,15 +103,15 @@ def plot_results(df, axis, title):
             ha="center",
             va="center",
             color=text_color,
-            )
+        )
 
 
-def generate_graph(df, title):
+def generate_grouped_graph(df, title):
     # Two columns, one for results, one for comparison
     ncols = 2
     # A row per group
     nrows = df.ngroups
-    fig = plt.figure(figsize=(10, 30))
+    fig = plt.figure(figsize=(10, df.shape[0]))
     gs = fig.add_gridspec(
         nrows=nrows,
         ncols=ncols,
@@ -130,6 +133,30 @@ def generate_graph(df, title):
     return fig
 
 
+def generate_graph(df, title):
+    # Two columns, one for results, one for comparison
+    ncols = 2
+    # A row per group
+    nrows = 1
+    fig = plt.figure(figsize=(10, df.shape[0]))
+    gs = fig.add_gridspec(
+        nrows=nrows,
+        ncols=ncols,
+        hspace=0.5,  # Vertical space between subplots
+        wspace=0,
+        height_ratios=[1],
+        width_ratios=([0.8, 0.2] if "comparison" in df.count() else [1, 0]),
+    )
+    axes = gs.subplots(sharey="row")
+    fig.subplots_adjust(top=0.95)
+    fig.suptitle(title, fontsize=18)
+
+    plot_results(df, axes[0], None)
+    plot_comparison(df, axes[1])
+
+    return fig
+
+
 def set_graph_style():
     plt.style.use("default")
     mpl.rc("axes", facecolor=facecolor)
@@ -140,34 +167,32 @@ def set_graph_style():
 
 
 def sample_data(output):
-    columns = pd.MultiIndex.from_tuples([('Unnamed: 0_level_0', 'Team'),
-                                       ('Leadership', 'The leaders at my company keep people informed about what is happening'),
-                                       ('Leadership', 'My manager is a great role model for employees'),
-                                       ('Leadership', 'The leaders at my company have communicated a vision that motivates me'),
-                                       ('Enablement', 'I have access to the things I need to do my job well'),
-                                       ('Enablement', 'I have access to the learning and development I need to do my job well'),
-                                       ('Enablement', 'Most of the systems and processes here support us getting our work done effectively'),
-                                       ('Alignment', 'I know what I need to do to be successful in my role'),
-                                       ('Alignment', 'I receive appropriate recognition when I do good work'),
-                                       ('Alignment', 'Day-to-day decisions here demonstrate that quality and improvement are top priorities'),
-                                       ('Development', 'My manager (or someone in management) has shown a genuine interest in my career aspirations'),
-                                       ('Development', 'I believe there are good career opportunities for me at this company'),
-                                       ('Development', 'This is a great company for me to make a contribution to my development')])
+    columns = pd.MultiIndex.from_tuples(
+        [
+            ("", "Team"),
+            ("Leadership", "The leaders at my company keep people informed about what is happening"),
+            ("Leadership", "My manager is a great role model for employees"),
+            ("Leadership", "The leaders at my company have communicated a vision that motivates me"),
+            ("Enablement", "I have access to the things I need to do my job well"),
+            ("Enablement", "I have access to the learning and development I need to do my job well"),
+            ("Enablement", "Most of the systems and processes here support us getting our work done effectively"),
+            ("Alignment", "I know what I need to do to be successful in my role"),
+            ("Alignment", "I receive appropriate recognition when I do good work"),
+            ("Alignment", "Day-to-day decisions here demonstrate that quality and improvement are top priorities"),
+            (
+                "Development",
+                "My manager (or someone in management) has shown a genuine interest in my career aspirations",
+            ),
+            ("Development", "I believe there are good career opportunities for me at this company"),
+            ("Development", "This is a great company for me to make a contribution to my development"),
+        ]
+    )
     df = pd.DataFrame(columns=columns)
     for i in range(100):
-        df.loc[i] = np.append(np.random.choice(['Product Engineering', 'Data Engineering', 'Leadership', 'Customer Experience'], 1), np.random.randint(1, 5, size=(df.shape[1]-1)))
-    # df = df.set_index([('Unnamed: 0_level_0', 'Team')])
-    # print(df.xs('Team', axis=1, level=1, drop_level=False).iloc[:, 0])
-    # print(df.iloc[:, df.columns.get_level_values(1) == 'Team'])
-    # print(df.loc[:, (slice(None), 'Team')])
-    # print(df.columns[df.columns.get_level_values(1) == 'Team'][0])
-    # df = df.set_index(df.columns.get_locs([slice(None), 'Team'])[0])
-    # print(df.columns.get_locs([slice(None), 'Team']))
-
-    # df.set_index(df.xs('Team', axis=1, level=1, drop_level=False).iloc[:, 0])
-    # df = df.set_index(df.loc[:, (slice(None), 'Team')].iloc[:, 0])
-    # df = df.set_index(df.columns[df.columns.get_level_values(1) == 'Team'][0])
-    # print(df)
+        df.loc[i] = np.append(
+            np.random.choice(["Product Engineering", "Data Engineering", "Leadership", "Customer Experience"], 1),
+            np.random.randint(1, 5, size=(df.shape[1] - 1)),
+        )
     df.to_csv(output, index=False)
     exit()
 
@@ -175,36 +200,40 @@ def sample_data(output):
 @click.command()
 @click.argument("_input", metavar="INPUT", type=click.File("rb"))
 @click.argument("output")
-@click.option('-c', '--cohort-column')
-@click.option('-g', '--has-groups', is_flag=True)
+@click.option("-c", "--cohort-column")
+@click.option("-g", "--has-groups", is_flag=True)
 def main(_input, output, cohort_column, has_groups):
     value_order = [1, 2, 3, 4]
 
     # sample_data(output)
 
     # Load the data
-    header = [0, 1] if has_groups else [0]
-    results = pd.read_csv(_input, header=header)
+    header_rows = [0, 1] if has_groups else [0]
+    results = pd.read_csv(_input, header=header_rows)
     print(f"total respondents: {results.shape[0]}")
 
     # Filter columns to just numeric
+    cohort_column_multiindex = results.columns[results.columns.get_level_values(1) == cohort_column][0] if has_groups else cohort_column
     results = (
-        results.set_index(results.columns[results.columns.get_level_values(1) == cohort_column][0])
-        .rename_axis('cohort')
+        results.set_index(cohort_column_multiindex)
+        .rename_axis("cohort")
         .select_dtypes(include="number")
     )
     # Stack results -> count question by value
-    results = pd.get_dummies(results.stack(header)).rename_axis(["cohort", "group", "question"])
+    index_names = ["cohort", "group", "question"] if has_groups else ["cohort", "question"]
+    results = pd.get_dummies(results.stack(header_rows)).rename_axis(index_names)
 
     # Create aggregate results
-    aggregate = results.groupby(level=[1, 2]).sum()
+    aggregate_group_by = [1, 2] if has_groups else [1]
+    aggregate = results.groupby(level=aggregate_group_by).sum()
     # Convert counts into percentages
     aggregate = aggregate.div(aggregate.sum(axis=1), axis=0)
     # Calculate agreeable score (sum of postitive responses)
     aggregate["agreeable"] = aggregate.iloc[:, 0:2].sum(axis=1)
 
     # Count occurrences of responses
-    results = results.groupby(level=[0, 1, 2]).sum()
+    results_group_by = [0, 1, 2] if has_groups else [0, 1]
+    results = results.groupby(level=results_group_by).sum()
     # Convert counts into percentages
     results = results.div(results.sum(axis=1), axis=0)
     # Calculate agreeable score (sum of positive responses)
@@ -218,21 +247,36 @@ def main(_input, output, cohort_column, has_groups):
     # Global figure styles
     set_graph_style()
 
-    aggregate_by_group = aggregate.groupby("group", dropna=False)
-    fig = generate_graph(aggregate_by_group, "All")
-    print(f"writing to {output}...")
-    fig.savefig(output, bbox_inches="tight")
+    if has_groups:
+        aggregate_by_group = aggregate.groupby("group", dropna=False)
+        fig = generate_grouped_graph(aggregate_by_group, "All")
+        print(f"writing to {output}...")
+        fig.savefig(output, bbox_inches="tight")
 
-    (root, ext) = os.path.splitext(output)
-    by_cohort = results.groupby("cohort", dropna=False)
-    for (key, group), i in zip(by_cohort, range(1, by_cohort.ngroups + 1)):
-        group = group.drop(columns="cohort")
-        alt_output = f"{root}.{i}{ext}"
-        by_group = group.groupby("group", dropna=False)
+        (root, ext) = os.path.splitext(output)
+        by_cohort = results.groupby("cohort", dropna=False)
+        for (key, group), i in zip(by_cohort, range(1, by_cohort.ngroups + 1)):
+            group = group.drop(columns="cohort")
+            alt_output = f"{root}.{i}{ext}"
+            by_group = group.groupby("group", dropna=False)
 
-        fig = generate_graph(by_group, key)
-        print(f"writing {i} of {by_cohort.ngroups} to {alt_output}...")
-        fig.savefig(alt_output, bbox_inches="tight")
+            fig = generate_grouped_graph(by_group, key)
+            print(f"writing {i} of {by_cohort.ngroups} to {alt_output}...")
+            fig.savefig(alt_output, bbox_inches="tight")
+    else:
+        fig = generate_graph(aggregate, "All")
+        print(f"writing to {output}...")
+        fig.savefig(output, bbox_inches="tight")
+
+        (root, ext) = os.path.splitext(output)
+        by_cohort = results.groupby("cohort", dropna=False)
+        for (key, group), i in zip(by_cohort, range(1, by_cohort.ngroups + 1)):
+            group = group.drop(columns="cohort")
+            alt_output = f"{root}.{i}{ext}"
+
+            fig = generate_graph(group, key)
+            print(f"writing {i} of {by_cohort.ngroups} to {alt_output}...")
+            fig.savefig(alt_output, bbox_inches="tight")
 
 
 if __name__ == "__main__":
