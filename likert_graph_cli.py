@@ -126,8 +126,8 @@ def create_graph(df, title):
     question_count = df.shape[0]
     width_ratios = ([0.8, 0.2] if "comparison" in df else [1, 0])
 
-    if "group" in df.index.names:
-        groups = df.groupby("group", dropna=False)
+    if "_group" in df.index.names:
+        groups = df.groupby("_group", dropna=False)
         fig, axes = create_figure(
             subplot_rows=groups.ngroups,
             height=question_count,
@@ -136,7 +136,7 @@ def create_graph(df, title):
             title=title
         )
         for (key, group), i in zip(groups, range(groups.ngroups)):
-            group = group.reset_index(level="group", drop=True)
+            group = group.reset_index(level="_group", drop=True)
             plot_results(group, axes[i][0], key)
             plot_comparison(group, axes[i][1])
     else:
@@ -213,11 +213,11 @@ def main(_input, output, cohort_column, has_groups):
     cohort_column_multiindex = results.columns[results.columns.get_level_values(1) == cohort_column][0] if has_groups else cohort_column
     results = (
         results.set_index(cohort_column_multiindex)
-        .rename_axis("cohort")
+        .rename_axis("_cohort")
         .select_dtypes(include="number")
     )
     # Stack results -> count question by value
-    index_names = ["cohort", "group", "question"] if has_groups else ["cohort", "question"]
+    index_names = ["_cohort", "_group", "_question"] if has_groups else ["_cohort", "_question"]
     results = pd.get_dummies(results.stack(header_rows)).rename_axis(index_names)
 
     # Create aggregate results
@@ -249,9 +249,9 @@ def main(_input, output, cohort_column, has_groups):
     fig.savefig(output, bbox_inches="tight")
 
     (root, ext) = os.path.splitext(output)
-    by_cohort = results.groupby("cohort", dropna=False)
+    by_cohort = results.groupby("_cohort", dropna=False)
     for (key, group), i in zip(by_cohort, range(1, by_cohort.ngroups + 1)):
-        group = group.drop(columns="cohort")
+        group = group.drop(columns="_cohort")
         alt_output = f"{root}.{i}{ext}"
 
         fig = create_graph(group, key)
