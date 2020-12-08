@@ -123,11 +123,11 @@ def create_figure(subplot_rows, height, height_ratios, width_ratios, title):
 
 
 def create_graph(df, title):
-    # Height is calculated from number of quesitons + groups,
+    # Height is calculated from number of questions + groups,
     # this adjusts the weight of the height
     height_adjustment = 0.8
     question_count = df.shape[0]
-    width_ratios = ([0.8, 0.2] if "comparison" in df else [1, 0])
+    width_ratios = [0.8, 0.2] if "comparison" in df else [1, 0]
 
     if "_group" in df.index.names:
         groups = df.groupby("_group", dropna=False)
@@ -136,7 +136,7 @@ def create_graph(df, title):
             height=(question_count + groups.ngroups) * height_adjustment,
             height_ratios=groups.size().tolist(),
             width_ratios=width_ratios,
-            title=title
+            title=title,
         )
         for (key, group), i in zip(groups, range(groups.ngroups)):
             group = group.reset_index(level="_group", drop=True)
@@ -148,7 +148,7 @@ def create_graph(df, title):
             height=question_count * height_adjustment,
             height_ratios=[1],
             width_ratios=width_ratios,
-            title=title
+            title=title,
         )
         plot_results(df, axes[0], None)
         plot_comparison(df, axes[1])
@@ -213,12 +213,10 @@ def main(_input, output, cohort_column, has_groups):
     print(f"total respondents: {results.shape[0]}")
 
     # Filter columns to just numeric
-    cohort_column_multiindex = results.columns[results.columns.get_level_values(1) == cohort_column][0] if has_groups else cohort_column
-    results = (
-        results.set_index(cohort_column_multiindex)
-        .rename_axis("_cohort")
-        .select_dtypes(include="number")
+    cohort_column_multiindex = (
+        results.columns[results.columns.get_level_values(1) == cohort_column][0] if has_groups else cohort_column
     )
+    results = results.set_index(cohort_column_multiindex).rename_axis("_cohort").select_dtypes(include="number")
     # Stack results -> count question by value
     index_names = ["_cohort", "_group", "_question"] if has_groups else ["_cohort", "_question"]
     results = pd.get_dummies(results.stack(header_rows)).rename_axis(index_names)

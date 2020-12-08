@@ -20,7 +20,7 @@ setup(
     ],
     python_requires=">=3.6",
     install_requires=["click", "matplotlib", "numpy", "pandas",],
-    extras_require={"dev": ["black==19.10b0", "flake8==3.8.3", "isort==4.3.21",]},
+    extras_require={"dev": ["black==19.10b0", "flake8==3.8.3", "isort==4.3.21", "pytest==6.1.2", "coverage==5.3",]},
     entry_points="""
         [console_scripts]
         likert-graph-cli=likert_graph_cli:main
