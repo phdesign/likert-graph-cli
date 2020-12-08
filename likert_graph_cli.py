@@ -207,27 +207,51 @@ def main(_input, output, cohort_column, has_groups):
 
     # sample_data(output)
 
+    # Global figure styles
+    set_graph_style()
+
     # Load the data
     header_rows = [0, 1] if has_groups else [0]
     results = pd.read_csv(_input, header=header_rows)
     print(f"total respondents: {results.shape[0]}")
 
+    if cohort_column is not None:
+        # Save cohort column to index
+        cohort_column_multiindex = (
+            results.columns[results.columns.get_level_values(1) == cohort_column][0] if has_groups else cohort_column
+        )
+        results = results.set_index(cohort_column_multiindex).rename_axis("_cohort")
     # Filter columns to just numeric
-    cohort_column_multiindex = (
-        results.columns[results.columns.get_level_values(1) == cohort_column][0] if has_groups else cohort_column
-    )
-    results = results.set_index(cohort_column_multiindex).rename_axis("_cohort").select_dtypes(include="number")
+    results = results.select_dtypes(include="number")
+
     # Stack results -> count question by value
+    results = pd.get_dummies(results.stack(header_rows))
     index_names = ["_cohort", "_group", "_question"] if has_groups else ["_cohort", "_question"]
-    results = pd.get_dummies(results.stack(header_rows)).rename_axis(index_names)
+    results = results.rename_axis(index_names)
+    # Remove the record index when no cohort
+    if cohort_column is None:
+        results = results.reset_index(level=0, drop=True)
 
     # Create aggregate results
-    aggregate_group_by = [1, 2] if has_groups else [1]
+    if has_groups:
+        aggregate_group_by = [1, 2]
+    elif cohort_column is not None:
+        aggregate_group_by = [1]
+    else:
+        aggregate_group_by = [0]
     aggregate = results.groupby(level=aggregate_group_by).sum()
     # Convert counts into percentages
     aggregate = aggregate.div(aggregate.sum(axis=1), axis=0)
-    # Calculate agreeable score (sum of postitive responses)
+    # Calculate agreeable score (sum of positive responses)
     aggregate["agreeable"] = aggregate.iloc[:, 0:2].sum(axis=1)
+
+    title = "All" if cohort_column is not None else None
+    fig = create_graph(aggregate, title)
+    print(f"writing to {output}...")
+    fig.savefig(output, bbox_inches="tight")
+
+    if cohort_column is None:
+        return
 
     # Count occurrences of responses
     results_group_by = [0, 1, 2] if has_groups else [0, 1]
@@ -241,13 +265,6 @@ def main(_input, output, cohort_column, has_groups):
 
     results = results.reset_index(level=0).join(aggregate[["agreeable"]], rsuffix="_all")
     results["comparison"] = results["agreeable"] - results["agreeable_all"]
-
-    # Global figure styles
-    set_graph_style()
-
-    fig = create_graph(aggregate, "All")
-    print(f"writing to {output}...")
-    fig.savefig(output, bbox_inches="tight")
 
     (root, ext) = os.path.splitext(output)
     by_cohort = results.groupby("_cohort", dropna=False)
