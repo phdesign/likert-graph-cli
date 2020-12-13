@@ -196,6 +196,22 @@ def sample_data(output):
     exit()
 
 
+def calc_percentages(df, group_level, compare=None):
+    df = df.groupby(level=group_level).sum()
+    # Convert counts into percentages
+    df = df.div(df.sum(axis=1), axis=0)
+    # Calculate agreeable score (sum of positive responses)
+    df["agreeable"] = df.iloc[:, 0:2].sum(axis=1)
+    # Reverse order of columns
+    # response_percent = response_percent.iloc[:, ::-1]
+
+    if compare:
+        results = results.reset_index(level=0).join(compare[["agreeable"]], rsuffix="_compare")
+        results["comparison"] = results["agreeable"] - results["agreeable_compare"]
+
+    return df
+
+
 @click.command()
 @click.argument("_input", metavar="INPUT", type=click.File("rb"))
 @click.argument("output")
@@ -239,11 +255,7 @@ def main(_input, output, cohort_column, has_groups):
         aggregate_group_by = [1]
     else:
         aggregate_group_by = [0]
-    aggregate = results.groupby(level=aggregate_group_by).sum()
-    # Convert counts into percentages
-    aggregate = aggregate.div(aggregate.sum(axis=1), axis=0)
-    # Calculate agreeable score (sum of positive responses)
-    aggregate["agreeable"] = aggregate.iloc[:, 0:2].sum(axis=1)
+    aggregate = calc_percentages(results, aggregate_group_by)
 
     title = "All" if cohort_column is not None else None
     fig = create_graph(aggregate, title)
@@ -255,16 +267,7 @@ def main(_input, output, cohort_column, has_groups):
 
     # Count occurrences of responses
     results_group_by = [0, 1, 2] if has_groups else [0, 1]
-    results = results.groupby(level=results_group_by).sum()
-    # Convert counts into percentages
-    results = results.div(results.sum(axis=1), axis=0)
-    # Calculate agreeable score (sum of positive responses)
-    results["agreeable"] = results.iloc[:, 0:2].sum(axis=1)
-    # Reverse order of columns
-    # response_percent = response_percent.iloc[:, ::-1]
-
-    results = results.reset_index(level=0).join(aggregate[["agreeable"]], rsuffix="_all")
-    results["comparison"] = results["agreeable"] - results["agreeable_all"]
+    results = calc_percentages(results, results_group_by, aggregate)
 
     (root, ext) = os.path.splitext(output)
     by_cohort = results.groupby("_cohort", dropna=False)
