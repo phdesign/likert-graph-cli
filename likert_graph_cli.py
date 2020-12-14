@@ -205,10 +205,30 @@ def calc_percentages(df, group_level, compare=None):
     # Reverse order of columns
     # response_percent = response_percent.iloc[:, ::-1]
 
-    if compare:
-        results = results.reset_index(level=0).join(compare[["agreeable"]], rsuffix="_compare")
-        results["comparison"] = results["agreeable"] - results["agreeable_compare"]
+    if compare is not None:
+        df = df.reset_index(level=0).join(compare[["agreeable"]], rsuffix="_compare")
+        df["comparison"] = df["agreeable"] - df["agreeable_compare"]
 
+    return df
+
+
+def pivot_questions(df, cohort_column, header_rows, index_names):
+    if cohort_column is not None:
+        if type(df.columns) == pd.MultiIndex:
+            cohort_column_multiindex = df.columns[df.columns.get_level_values(1) == cohort_column][0]
+        else:
+            cohort_column_multiindex = cohort_column
+        # Save cohort column to index
+        df = df.set_index(cohort_column_multiindex).rename_axis("_cohort")
+    # Filter columns to just numeric
+    df = df.select_dtypes(include="number")
+
+    # Stack df -> count question by value
+    df = pd.get_dummies(df.stack(header_rows))
+    df = df.rename_axis(index_names)
+    # Remove the record index when no cohort
+    if cohort_column is None:
+        df = df.reset_index(level=0, drop=True)
     return df
 
 
@@ -226,58 +246,62 @@ def main(_input, output, cohort_column, has_groups):
     # Global figure styles
     set_graph_style()
 
-    # Load the data
-    header_rows = [0, 1] if has_groups else [0]
-    results = pd.read_csv(_input, header=header_rows)
-    print(f"total respondents: {results.shape[0]}")
+    # Forking code
+    if has_groups:
+        header_rows = [0, 1]
+    else:
+        header_rows = [0]
 
-    if cohort_column is not None:
-        # Save cohort column to index
-        cohort_column_multiindex = (
-            results.columns[results.columns.get_level_values(1) == cohort_column][0] if has_groups else cohort_column
-        )
-        results = results.set_index(cohort_column_multiindex).rename_axis("_cohort")
-    # Filter columns to just numeric
-    results = results.select_dtypes(include="number")
+    if has_groups:
+        index_names = ["_cohort", "_group", "_question"]
+    else:
+        index_names = ["_cohort", "_question"]
 
-    # Stack results -> count question by value
-    results = pd.get_dummies(results.stack(header_rows))
-    index_names = ["_cohort", "_group", "_question"] if has_groups else ["_cohort", "_question"]
-    results = results.rename_axis(index_names)
-    # Remove the record index when no cohort
-    if cohort_column is None:
-        results = results.reset_index(level=0, drop=True)
-
-    # Create aggregate results
     if has_groups:
         aggregate_group_by = [1, 2]
     elif cohort_column is not None:
         aggregate_group_by = [1]
     else:
         aggregate_group_by = [0]
-    aggregate = calc_percentages(results, aggregate_group_by)
 
-    title = "All" if cohort_column is not None else None
-    fig = create_graph(aggregate, title)
+    if cohort_column:
+        aggregate_title = "All"
+    else:
+        aggregate_title = None
+
+    if has_groups:
+        results_group_by = [0, 1, 2]
+    elif cohort_column is not None:
+        results_group_by = [0, 1]
+    else:
+        results_group_by = None
+
+    # Load the data
+    results = pd.read_csv(_input, header=header_rows)
+    print(f"total respondents: {results.shape[0]}")
+
+    results = pivot_questions(results, cohort_column, header_rows, index_names)
+    print(results.head(n=30))
+    exit()
+
+    # Create aggregate results
+    aggregate = calc_percentages(results, aggregate_group_by)
+    fig = create_graph(aggregate, aggregate_title)
     print(f"writing to {output}...")
     fig.savefig(output, bbox_inches="tight")
 
-    if cohort_column is None:
-        return
+    if cohort_column is not None:
+        # Count occurrences of responses
+        results = calc_percentages(results, results_group_by, aggregate)
+        (root, ext) = os.path.splitext(output)
+        by_cohort = results.groupby("_cohort", dropna=False)
+        for (key, group), i in zip(by_cohort, range(1, by_cohort.ngroups + 1)):
+            group = group.drop(columns="_cohort")
+            alt_output = f"{root}.{i}{ext}"
 
-    # Count occurrences of responses
-    results_group_by = [0, 1, 2] if has_groups else [0, 1]
-    results = calc_percentages(results, results_group_by, aggregate)
-
-    (root, ext) = os.path.splitext(output)
-    by_cohort = results.groupby("_cohort", dropna=False)
-    for (key, group), i in zip(by_cohort, range(1, by_cohort.ngroups + 1)):
-        group = group.drop(columns="_cohort")
-        alt_output = f"{root}.{i}{ext}"
-
-        fig = create_graph(group, key)
-        print(f"writing {i} of {by_cohort.ngroups} to {alt_output}...")
-        fig.savefig(alt_output, bbox_inches="tight")
+            fig = create_graph(group, key)
+            print(f"writing {i} of {by_cohort.ngroups} to {alt_output}...")
+            fig.savefig(alt_output, bbox_inches="tight")
 
 
 if __name__ == "__main__":
