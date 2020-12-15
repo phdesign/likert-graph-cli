@@ -204,10 +204,10 @@ def sample_data(output):
     for i in range(100):
         df.loc[i] = np.append(
             np.random.choice(["Product Engineering", "Data Engineering", "Leadership", "Customer Experience"], 1),
-            np.random.randint(1, 5, size=(df.shape[1] - 1)),
+            np.random.choice(["strongly agree", "agree", "neutral", "disagree", "strongly disagree"], size=(df.shape[1] - 1)),
+            # np.random.randint(1, 5, size=(df.shape[1] - 1)),
         )
     df.to_csv(output, index=False)
-    exit()
 
 
 def calc_percentages(df, group_level, compare=None):
@@ -235,7 +235,7 @@ def pivot_questions(df, cohort_column, header_rows, index_names):
         # Save cohort column to index
         df = df.set_index(cohort_column_multiindex).rename_axis("_cohort")
     # Filter columns to just numeric
-    df = df.select_dtypes(include="number")
+    # df = df.select_dtypes(include="number")
 
     # Stack df -> count question by value
     df = pd.get_dummies(df.stack(header_rows))
@@ -251,11 +251,14 @@ def pivot_questions(df, cohort_column, header_rows, index_names):
 @click.argument("output")
 @click.option("-c", "--cohort-column")
 @click.option("-g", "--has-groups", is_flag=True)
-def main(_input, output, cohort_column, has_groups):
-    value_order = [1, 2, 3, 4]
+@click.option("-s", "--sample", is_flag=True)
+def main(_input, output, cohort_column, has_groups, sample):
+    value_order = ["strongly agree", "agree", "neutral", "disagree", "strongly disagree"]
     # TODO: Option to alphabetise the question / group order
 
-    # sample_data(output)
+    if sample:
+        sample_data(output)
+        exit()
 
     # Global figure styles
     set_graph_style()
@@ -295,6 +298,10 @@ def main(_input, output, cohort_column, has_groups):
     print(f"total respondents: {results.shape[0]}")
 
     results = pivot_questions(results, cohort_column, header_rows, index_names)
+    # Sort columns
+    results = results[value_order]
+    # print(results.head(n=20))
+    # exit()
 
     # Create aggregate results
     aggregate = calc_percentages(results, aggregate_group_by)
