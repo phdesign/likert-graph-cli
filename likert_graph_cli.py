@@ -65,7 +65,7 @@ def plot_comparison(df, axis):
 
 
 def plot_results(df, axis, title):
-    df.drop(columns=["comparison", "agreeable", "agreeable_all"], errors="ignore").plot(
+    df.drop(columns=["comparison", "agreeable", "agreeable_compare"], errors="ignore").plot(
         kind="barh",
         stacked=True,
         color=series_colors,
@@ -281,8 +281,6 @@ def main(_input, output, cohort_column, has_groups):
     print(f"total respondents: {results.shape[0]}")
 
     results = pivot_questions(results, cohort_column, header_rows, index_names)
-    print(results.head(n=30))
-    exit()
 
     # Create aggregate results
     aggregate = calc_percentages(results, aggregate_group_by)
