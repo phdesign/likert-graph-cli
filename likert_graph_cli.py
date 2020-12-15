@@ -77,13 +77,13 @@ def plot_comparison(df, axis):
         )
 
 
-def plot_results(df, axis, title, colors):
+def plot_results(df, axis, title, colors, show_legend):
     df = df.drop(columns=["comparison", "agreeable", "agreeable_compare"], errors="ignore")
     df.plot(
         kind="barh",
         stacked=True,
         color=colors,
-        legend=True,
+        legend=show_legend,
         xlabel="",
         fontsize=10,
         ax=axis,
@@ -101,8 +101,6 @@ def plot_results(df, axis, title, colors):
     axis.xaxis.set_ticks(np.arange(start, end, 0.25))
     # Convert fractional values (0.1) to percentages (10%)
     axis.xaxis.set_major_formatter(mtick.PercentFormatter(1.0))
-    # Set the location of the legend (default=best)
-    axis.legend(loc="best")
     # Add value text on top of bar
     for rec in axis.patches:
         # Determine the best text colour to use
@@ -136,7 +134,7 @@ def create_figure(subplot_rows, height, height_ratios, width_ratios, title):
     return fig, axes
 
 
-def create_graph(df, title, colors):
+def create_graph(df, title, colors, show_legend):
     # Height is calculated from number of questions + groups,
     # this adjusts the weight of the height
     height_adjustment = 0.8
@@ -154,7 +152,7 @@ def create_graph(df, title, colors):
         )
         for (key, group), i in zip(groups, range(groups.ngroups)):
             group = group.reset_index(level="_group", drop=True)
-            plot_results(group, axes[i][0], key, colors)
+            plot_results(group, axes[i][0], key, colors, show_legend)
             plot_comparison(group, axes[i][1])
     else:
         fig, axes = create_figure(
@@ -164,7 +162,7 @@ def create_graph(df, title, colors):
             width_ratios=width_ratios,
             title=title,
         )
-        plot_results(df, axes[0], None, colors)
+        plot_results(df, axes[0], None, colors, show_legend)
         plot_comparison(df, axes[1])
 
     return fig
@@ -214,8 +212,10 @@ def calc_percentages(df, group_level, compare=None):
     df = df.groupby(level=group_level).sum()
     # Convert counts into percentages
     df = df.div(df.sum(axis=1), axis=0)
+    # Assume the first half of the columns are agreeable
+    agreeable_columns = math.floor(df.shape[1] / 2.0)
     # Calculate agreeable score (sum of positive responses)
-    df["agreeable"] = df.iloc[:, 0:2].sum(axis=1)
+    df["agreeable"] = df.iloc[:, 0:agreeable_columns].sum(axis=1)
 
     if compare is not None:
         df = df.reset_index(level=0).join(compare[["agreeable"]], rsuffix="_compare")
@@ -261,10 +261,11 @@ def sort_columns(df, value_order):
 @click.argument("output")
 @click.option("-c", "--cohort-column", help="Name of the column to group cohorts by. Will output multiple graphs.")
 @click.option("-g", "--has-groups", is_flag=True, help="Expect INPUT to have first header row of column groups.")
+@click.option("--legend/--no-legend", default=True, help="Show / hide legend on graph (defaults to show).")
 @click.option("-n", "--numeric-only", is_flag=True, help="Filter columns to those that have numeric values only")
 @click.option("-s", "--sample", is_flag=True, help="Generate a sample csv file of random data and exit.")
 @click.option("-v", "--values", help="Comma-separated list of value names in order from positive to negative.")
-def main(_input, output, cohort_column, has_groups, numeric_only, sample, values):
+def main(_input, output, cohort_column, has_groups, legend, numeric_only, sample, values):
     """Generates a horizonal bar graph based on likert scores (agree, disagree, etc...).
 
     INPUT expects a csv file of scores, one response per row with each question as a column.
@@ -318,7 +319,7 @@ def main(_input, output, cohort_column, has_groups, numeric_only, sample, values
 
     # Create aggregate results
     aggregate = calc_percentages(results, aggregate_group_by)
-    fig = create_graph(aggregate, aggregate_title, colors)
+    fig = create_graph(aggregate, aggregate_title, colors, legend)
     print(f"writing to {output}...")
     fig.savefig(output, bbox_inches="tight")
 
@@ -336,7 +337,7 @@ def main(_input, output, cohort_column, has_groups, numeric_only, sample, values
             group = group.drop(columns="_cohort")
             alt_output = f"{root}.{i}{ext}"
 
-            fig = create_graph(group, key, colors)
+            fig = create_graph(group, key, colors, legend)
             print(f"writing {i} of {by_cohort.ngroups} to {alt_output}...")
             fig.savefig(alt_output, bbox_inches="tight")
 
