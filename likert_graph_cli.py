@@ -77,12 +77,12 @@ def plot_comparison(df, axis):
         )
 
 
-def plot_results(df, axis, title):
+def plot_results(df, axis, title, colors):
     df = df.drop(columns=["comparison", "agreeable", "agreeable_compare"], errors="ignore")
     df.plot(
         kind="barh",
         stacked=True,
-        color=blend_colors(df.shape[1]),
+        color=colors,
         legend=True,
         xlabel="",
         fontsize=10,
@@ -136,7 +136,7 @@ def create_figure(subplot_rows, height, height_ratios, width_ratios, title):
     return fig, axes
 
 
-def create_graph(df, title):
+def create_graph(df, title, colors):
     # Height is calculated from number of questions + groups,
     # this adjusts the weight of the height
     height_adjustment = 0.8
@@ -154,7 +154,7 @@ def create_graph(df, title):
         )
         for (key, group), i in zip(groups, range(groups.ngroups)):
             group = group.reset_index(level="_group", drop=True)
-            plot_results(group, axes[i][0], key)
+            plot_results(group, axes[i][0], key, colors)
             plot_comparison(group, axes[i][1])
     else:
         fig, axes = create_figure(
@@ -164,7 +164,7 @@ def create_graph(df, title):
             width_ratios=width_ratios,
             title=title,
         )
-        plot_results(df, axes[0], None)
+        plot_results(df, axes[0], None, colors)
         plot_comparison(df, axes[1])
 
     return fig
@@ -216,8 +216,6 @@ def calc_percentages(df, group_level, compare=None):
     df = df.div(df.sum(axis=1), axis=0)
     # Calculate agreeable score (sum of positive responses)
     df["agreeable"] = df.iloc[:, 0:2].sum(axis=1)
-    # Reverse order of columns
-    # response_percent = response_percent.iloc[:, ::-1]
 
     if compare is not None:
         df = df.reset_index(level=0).join(compare[["agreeable"]], rsuffix="_compare")
@@ -246,21 +244,32 @@ def pivot_questions(df, cohort_column, header_rows, index_names, numeric_only):
     return df
 
 
+def sort_columns(df, value_order):
+    if value_order is not None:
+        # Use only the value items that exist in the data, otherwise we'll get an error
+        existing_columns = df.columns.tolist()
+        filter_columns = [c for c in value_order if c in existing_columns]
+        df = df[filter_columns]
+
+    # Reverse order of columns
+    # df = df.iloc[:, ::-1]
+    return df
+
+
 @click.command(context_settings=dict(help_option_names=['-h', '--help']))
 @click.argument("_input", metavar="INPUT", type=click.File("rb"))
 @click.argument("output")
 @click.option("-c", "--cohort-column", help="Name of the column to group cohorts by. Will output multiple graphs.")
-@click.option("-v", "--value-order", help="Comma-separated list of value names in order.")
 @click.option("-g", "--has-groups", is_flag=True, help="Expect INPUT to have first header row of column groups.")
-@click.option("-s", "--sample", is_flag=True, help="Generate a sample csv file of random data and exit.")
 @click.option("-n", "--numeric-only", is_flag=True, help="Filter columns to those that have numeric values only")
-def main(_input, output, cohort_column, value_order, has_groups, sample, numeric_only):
+@click.option("-s", "--sample", is_flag=True, help="Generate a sample csv file of random data and exit.")
+@click.option("-v", "--values", help="Comma-separated list of value names in order from positive to negative.")
+def main(_input, output, cohort_column, has_groups, numeric_only, sample, values):
     """Generates a horizonal bar graph based on likert scores (agree, disagree, etc...).
 
     INPUT expects a csv file of scores, one response per row with each question as a column.
     OUTPUT is the filename for the generated graph (png). If multiple graphs will be created (via cohorts), a number will be appended to the filename, e.g. output.1.png.
     """
-    # TODO: Option to alphabetise the question / group order
 
     if sample:
         sample_data(output)
@@ -286,9 +295,14 @@ def main(_input, output, cohort_column, value_order, has_groups, sample, numeric
 
     results = pivot_questions(results, cohort_column, header_rows, index_names, numeric_only)
     # Sort columns
-    if value_order is not None:
-        value_items = [v for v in (w.strip() for w in value_order.split(',')) if v != ""]
-        results = results[value_items]
+    value_order = (
+        [v for v in (w.strip() for w in values.split(',')) if v != ""]
+        if values is not None else None
+    )
+    results = sort_columns(results, value_order)
+
+    # If we have a list of values, use that to determine colors (allows for missing values in the data)
+    colors = blend_colors(len(value_order) if value_order is not None else results.shape[1])
 
     if has_groups:
         aggregate_group_by = [1, 2]
@@ -304,7 +318,7 @@ def main(_input, output, cohort_column, value_order, has_groups, sample, numeric
 
     # Create aggregate results
     aggregate = calc_percentages(results, aggregate_group_by)
-    fig = create_graph(aggregate, aggregate_title)
+    fig = create_graph(aggregate, aggregate_title, colors)
     print(f"writing to {output}...")
     fig.savefig(output, bbox_inches="tight")
 
@@ -322,7 +336,7 @@ def main(_input, output, cohort_column, value_order, has_groups, sample, numeric
             group = group.drop(columns="_cohort")
             alt_output = f"{root}.{i}{ext}"
 
-            fig = create_graph(group, key)
+            fig = create_graph(group, key, colors)
             print(f"writing {i} of {by_cohort.ngroups} to {alt_output}...")
             fig.savefig(alt_output, bbox_inches="tight")
 
