@@ -226,7 +226,7 @@ def calc_percentages(df, group_level, compare=None):
     return df
 
 
-def pivot_questions(df, cohort_column, header_rows, index_names):
+def pivot_questions(df, cohort_column, header_rows, index_names, numeric_only):
     if cohort_column is not None:
         if type(df.columns) == pd.MultiIndex:
             cohort_column_multiindex = df.columns[df.columns.get_level_values(1) == cohort_column][0]
@@ -234,8 +234,8 @@ def pivot_questions(df, cohort_column, header_rows, index_names):
             cohort_column_multiindex = cohort_column
         # Save cohort column to index
         df = df.set_index(cohort_column_multiindex).rename_axis("_cohort")
-    # Filter columns to just numeric
-    # df = df.select_dtypes(include="number")
+    if numeric_only:
+        df = df.select_dtypes(include="number")
 
     # Stack df -> count question by value
     df = pd.get_dummies(df.stack(header_rows))
@@ -246,14 +246,20 @@ def pivot_questions(df, cohort_column, header_rows, index_names):
     return df
 
 
-@click.command()
+@click.command(context_settings=dict(help_option_names=['-h', '--help']))
 @click.argument("_input", metavar="INPUT", type=click.File("rb"))
 @click.argument("output")
-@click.option("-c", "--cohort-column")
-@click.option("-g", "--has-groups", is_flag=True)
-@click.option("-s", "--sample", is_flag=True)
-def main(_input, output, cohort_column, has_groups, sample):
-    value_order = ["strongly agree", "agree", "neutral", "disagree", "strongly disagree"]
+@click.option("-c", "--cohort-column", help="Name of the column to group cohorts by. Will output multiple graphs.")
+@click.option("-v", "--value-order", help="Comma-separated list of value names in order.")
+@click.option("-g", "--has-groups", is_flag=True, help="Expect INPUT to have first header row of column groups.")
+@click.option("-s", "--sample", is_flag=True, help="Generate a sample csv file of random data and exit.")
+@click.option("-n", "--numeric-only", is_flag=True, help="Filter columns to those that have numeric values only")
+def main(_input, output, cohort_column, value_order, has_groups, sample, numeric_only):
+    """Generates a horizonal bar graph based on likert scores (agree, disagree, etc...).
+
+    INPUT expects a csv file of scores, one response per row with each question as a column.
+    OUTPUT is the filename for the generated graph (png). If multiple graphs will be created (via cohorts), a number will be appended to the filename, e.g. output.1.png.
+    """
     # TODO: Option to alphabetise the question / group order
 
     if sample:
@@ -274,6 +280,16 @@ def main(_input, output, cohort_column, has_groups, sample):
     else:
         index_names = ["_cohort", "_question"]
 
+    # Load the data
+    results = pd.read_csv(_input, header=header_rows)
+    print(f"total respondents: {results.shape[0]}")
+
+    results = pivot_questions(results, cohort_column, header_rows, index_names, numeric_only)
+    # Sort columns
+    if value_order is not None:
+        value_items = [v for v in (w.strip() for w in value_order.split(',')) if v != ""]
+        results = results[value_items]
+
     if has_groups:
         aggregate_group_by = [1, 2]
     elif cohort_column is not None:
@@ -286,23 +302,6 @@ def main(_input, output, cohort_column, has_groups, sample):
     else:
         aggregate_title = None
 
-    if has_groups:
-        results_group_by = [0, 1, 2]
-    elif cohort_column is not None:
-        results_group_by = [0, 1]
-    else:
-        results_group_by = None
-
-    # Load the data
-    results = pd.read_csv(_input, header=header_rows)
-    print(f"total respondents: {results.shape[0]}")
-
-    results = pivot_questions(results, cohort_column, header_rows, index_names)
-    # Sort columns
-    results = results[value_order]
-    # print(results.head(n=20))
-    # exit()
-
     # Create aggregate results
     aggregate = calc_percentages(results, aggregate_group_by)
     fig = create_graph(aggregate, aggregate_title)
@@ -310,6 +309,11 @@ def main(_input, output, cohort_column, has_groups, sample):
     fig.savefig(output, bbox_inches="tight")
 
     if cohort_column is not None:
+        if has_groups:
+            results_group_by = [0, 1, 2]
+        else:
+            results_group_by = [0, 1]
+
         # Count occurrences of responses
         results = calc_percentages(results, results_group_by, aggregate)
         (root, ext) = os.path.splitext(output)
