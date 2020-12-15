@@ -1,3 +1,4 @@
+import math
 import os
 
 import click
@@ -6,10 +7,24 @@ import matplotlib.pyplot as plt
 import matplotlib.ticker as mtick
 import numpy as np
 import pandas as pd
+from colour import Color
 from matplotlib.colors import to_rgba
 
 facecolor = "#f2f5fc"
-series_colors = ["#466384", "#869caf", "#e4af8e", "#d67242"]
+agree_color = "#3e6386"
+neutral_color = "#c7cdd0"
+disagree_color = "#e26d34"
+
+
+def blend_colors(num):
+    """Generate blending from agree to disagree."""
+    steps = math.floor(num / 2.0) + 1
+    agreeable_colors = list(Color(agree_color).range_to(Color(neutral_color), steps))
+    disagreeable_colors = list(Color(neutral_color).range_to(Color(disagree_color), steps))
+    # If it's an odd number of steps then there's no neutral
+    if (num % 2) == 0:
+        agreeable_colors.pop()
+    return [c.hex_l for c in (agreeable_colors + disagreeable_colors[1:])]
 
 
 def contrasting_text_color(color):
@@ -37,12 +52,10 @@ def plot_comparison(df, axis):
         positive_comparison = df.mask(~df["comparison"].ge(0), other=np.nan)[["comparison"]]
         if not negative_comparison.empty:
             negative_comparison.plot(
-                kind="barh", legend=False, align="center", width=0.2, ax=axis, color=series_colors[-1]
+                kind="barh", legend=False, align="center", width=0.2, ax=axis, color=disagree_color
             )
         if not positive_comparison.empty:
-            positive_comparison.plot(
-                kind="barh", legend=False, align="center", width=0.2, ax=axis, color=series_colors[0]
-            )
+            positive_comparison.plot(kind="barh", legend=False, align="center", width=0.2, ax=axis, color=agree_color)
     axis.invert_yaxis()
     # Hide the grid and spine lines
     axis.axis("off")
@@ -53,7 +66,7 @@ def plot_comparison(df, axis):
         width = rec.get_width()
         if width == 0:
             continue
-        text_color = series_colors[-1] if width < 0 else series_colors[0]
+        text_color = disagree_color if width < 0 else agree_color
         axis.text(
             rec.get_x(),
             rec.get_y() - rec.get_height(),
@@ -65,10 +78,11 @@ def plot_comparison(df, axis):
 
 
 def plot_results(df, axis, title):
-    df.drop(columns=["comparison", "agreeable", "agreeable_compare"], errors="ignore").plot(
+    df = df.drop(columns=["comparison", "agreeable", "agreeable_compare"], errors="ignore")
+    df.plot(
         kind="barh",
         stacked=True,
-        color=series_colors,
+        color=blend_colors(df.shape[1]),
         legend=True,
         xlabel="",
         fontsize=10,
