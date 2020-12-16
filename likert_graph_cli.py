@@ -10,11 +10,17 @@ import pandas as pd
 from colour import Color
 from matplotlib.colors import to_rgba
 
-facecolor = "#f2f5fc"
+face_color = "#f2f5fc"
 agree_color = "#3e6386"
 neutral_color = "#c7cdd0"
 disagree_color = "#e26d34"
 
+# Subplot height is calculated from the number of questions + groups,
+# this constant adjusts the weight of those values
+subplot_height_adjustment = 0.8
+# This adjust the space at the top of the graph for the title, it's
+# supposed to be in inches but it's inconistent
+title_margin_adjustment = 1
 
 def blend_colors(num):
     """Generate blending from agree to disagree."""
@@ -30,7 +36,7 @@ def blend_colors(num):
 def contrasting_text_color(color):
     """Calculate the contrasting text colour.
 
-    Uses euclidean distance between the facecolor and text colours
+    Uses euclidean distance between the face_color and text colours
     to determine if black or white is more contrasting.
     """
     color = np.array(color)
@@ -88,7 +94,7 @@ def plot_results(df, axis, title, colors, show_legend):
         fontsize=10,
         ax=axis,
         title=title,
-        edgecolor=facecolor,
+        edgecolor=face_color,
     )
     # Add padding between question & graph
     axis.tick_params(axis="y", which="major", pad=30)
@@ -133,17 +139,19 @@ def create_figure(subplot_rows, height, height_ratios, width_ratios, title):
     return fig, axes
 
 
-def adjust_title_space(fig, top):
+def adjust_title_space(fig, margin):
     """Give the super title some breathing room."""
+    s = fig.subplotpars
     w, h = fig.get_size_inches()
-    percent = top / h
-    fig.subplots_adjust(top=(1-percent))
+
+    fig_height = (h - (1 - s.top) * h) + margin
+    top = 1 - (margin / fig_height)
+    bottom = s.bottom * (h / fig_height)
+    fig.subplots_adjust(bottom=bottom, top=top)
+    fig.set_figheight(fig_height)
 
 
 def create_graph(df, title, colors, show_legend):
-    # Height is calculated from number of questions + groups,
-    # this adjusts the weight of the height
-    height_adjustment = 0.8
     question_count = df.shape[0]
     width_ratios = [0.8, 0.2] if "comparison" in df else [1, 0]
 
@@ -151,7 +159,7 @@ def create_graph(df, title, colors, show_legend):
         groups = df.groupby("_group", dropna=False)
         fig, axes = create_figure(
             subplot_rows=groups.ngroups,
-            height=(question_count + groups.ngroups) * height_adjustment,
+            height=(question_count + groups.ngroups) * subplot_height_adjustment,
             height_ratios=groups.size().tolist(),
             width_ratios=width_ratios,
             title=title,
@@ -163,7 +171,7 @@ def create_graph(df, title, colors, show_legend):
     else:
         fig, axes = create_figure(
             subplot_rows=1,
-            height=question_count * height_adjustment,
+            height=question_count * subplot_height_adjustment,
             height_ratios=[1],
             width_ratios=width_ratios,
             title=title,
@@ -172,15 +180,15 @@ def create_graph(df, title, colors, show_legend):
         plot_comparison(df, axes[1])
 
     if title is not None:
-        adjust_title_space(fig, 1.2)
+        adjust_title_space(fig, title_margin_adjustment)
 
     return fig
 
 
 def set_graph_style():
     plt.style.use("default")
-    mpl.rc("axes", facecolor=facecolor)
-    mpl.rc("figure", facecolor=facecolor)
+    mpl.rc("axes", facecolor=face_color)
+    mpl.rc("figure", facecolor=face_color)
     mpl.rc("axes.spines", left=False, bottom=False, top=False, right=False)
     mpl.rc("xtick.major", size=0)
     mpl.rc("ytick.major", size=0)
