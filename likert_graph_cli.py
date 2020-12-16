@@ -129,9 +129,15 @@ def create_figure(subplot_rows, height, height_ratios, width_ratios, title):
         width_ratios=width_ratios,
     )
     axes = gs.subplots(sharey="row")
-    fig.subplots_adjust(top=0.95)
     fig.suptitle(title, fontsize=18)
     return fig, axes
+
+
+def adjust_title_space(fig, top):
+    """Give the super title some breathing room."""
+    w, h = fig.get_size_inches()
+    percent = top / h
+    fig.subplots_adjust(top=(1-percent))
 
 
 def create_graph(df, title, colors, show_legend):
@@ -164,6 +170,9 @@ def create_graph(df, title, colors, show_legend):
         )
         plot_results(df, axes[0], None, colors, show_legend)
         plot_comparison(df, axes[1])
+
+    if title is not None:
+        adjust_title_space(fig, 1.2)
 
     return fig
 
