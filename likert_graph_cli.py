@@ -247,7 +247,9 @@ def pivot_questions(df, cohort_column, header_rows, index_names, numeric_only):
 def sort_columns(df, value_order):
     if value_order is not None:
         # Use only the value items that exist in the data, otherwise we'll get an error
-        existing_columns = df.columns.tolist()
+        # Convert all columns to strings (some may be numbers)
+        existing_columns = [str(c) for c in df.columns.tolist()]
+        df.columns = existing_columns
         filter_columns = [c for c in value_order if c in existing_columns]
         df = df[filter_columns]
 
