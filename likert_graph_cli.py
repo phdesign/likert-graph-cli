@@ -312,6 +312,8 @@ def main(_input, output, cohort_column, has_groups, legend, numeric_only, sample
     # Load the data
     results = pd.read_csv(_input, header=header_rows)
     print(f"total respondents: {results.shape[0]}")
+    if cohort_column:
+        counts = results[cohort_column].value_counts()
 
     results = pivot_questions(results, cohort_column, header_rows, index_names, numeric_only)
     # Sort columns
@@ -332,7 +334,7 @@ def main(_input, output, cohort_column, has_groups, legend, numeric_only, sample
         aggregate_group_by = [0]
 
     if cohort_column:
-        aggregate_title = "All"
+        aggregate_title = f"All (n={counts.sum()})"
     else:
         aggregate_title = None
 
@@ -342,7 +344,7 @@ def main(_input, output, cohort_column, has_groups, legend, numeric_only, sample
     print(f"writing to {output}...")
     fig.savefig(output, bbox_inches="tight")
 
-    if cohort_column is not None:
+    if cohort_column:
         if has_groups:
             results_group_by = [0, 1, 2]
         else:
@@ -355,8 +357,9 @@ def main(_input, output, cohort_column, has_groups, legend, numeric_only, sample
         for (key, group), i in zip(by_cohort, range(1, by_cohort.ngroups + 1)):
             group = group.drop(columns="_cohort")
             alt_output = f"{root}.{i}{ext}"
+            title = f"{key} (n={counts.loc[key]})"
 
-            fig = create_graph(group, key, colors, legend)
+            fig = create_graph(group, title, colors, legend)
             print(f"writing {i} of {by_cohort.ngroups} to {alt_output}...")
             fig.savefig(alt_output, bbox_inches="tight")
 
