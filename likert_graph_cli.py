@@ -22,6 +22,7 @@ subplot_height_adjustment = 0.8
 # supposed to be in inches but it's inconistent
 title_margin_adjustment = 1.2
 
+
 def blend_colors(num):
     """Generate blending from agree to disagree."""
     steps = math.floor(num / 2.0) + 1
@@ -219,7 +220,9 @@ def sample_data(output):
     for i in range(100):
         df.loc[i] = np.append(
             np.random.choice(["Product Engineering", "Data Engineering", "Leadership", "Customer Experience"], 1),
-            np.random.choice(["strongly agree", "agree", "neutral", "disagree", "strongly disagree"], size=(df.shape[1] - 1)),
+            np.random.choice(
+                ["strongly agree", "agree", "neutral", "disagree", "strongly disagree"], size=(df.shape[1] - 1)
+            ),
             # np.random.randint(1, 5, size=(df.shape[1] - 1)),
         )
     df.to_csv(output, index=False)
@@ -274,7 +277,7 @@ def sort_columns(df, value_order):
     return df
 
 
-@click.command(context_settings=dict(help_option_names=['-h', '--help']))
+@click.command(context_settings=dict(help_option_names=["-h", "--help"]))
 @click.argument("_input", metavar="INPUT", type=click.File("rb"))
 @click.argument("output")
 @click.option("-c", "--cohort-column", help="Name of the column to group cohorts by. Will output multiple graphs.")
@@ -325,10 +328,7 @@ def main(_input, output, cohort_column, has_groups, legend, numeric_only, sample
     if cohort_column is None:
         results = results.reset_index(level=0, drop=True)
     # Sort columns
-    value_order = (
-        [v for v in (w.strip() for w in values.split(',')) if v != ""]
-        if values is not None else None
-    )
+    value_order = [v for v in (w.strip() for w in values.split(",")) if v != ""] if values is not None else None
     results = sort_columns(results, value_order)
 
     # If we have a list of values, use that to determine colors (allows for missing values in the data)

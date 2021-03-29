@@ -8,7 +8,7 @@ def test_main_should_require_input():
     result = runner.invoke(main, [])
     assert result.exit_code == 2
     assert result.output == '''Usage: main [OPTIONS] INPUT OUTPUT
-Try 'main --help' for help.
+Try 'main -h' for help.
 
 Error: Missing argument 'INPUT'.
 '''
