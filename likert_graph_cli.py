@@ -20,7 +20,7 @@ disagree_color = "#e26d34"
 subplot_height_adjustment = 0.8
 # This adjust the space at the top of the graph for the title, it's
 # supposed to be in inches but it's inconistent
-title_margin_adjustment = 1
+title_margin_adjustment = 1.2
 
 def blend_colors(num):
     """Generate blending from agree to disagree."""
@@ -241,23 +241,22 @@ def calc_percentages(df, group_level, compare=None):
     return df
 
 
-def pivot_questions(df, cohort_column, header_rows, index_names, numeric_only):
-    if cohort_column is not None:
-        if type(df.columns) == pd.MultiIndex:
-            cohort_column_multiindex = df.columns[df.columns.get_level_values(1) == cohort_column][0]
-        else:
-            cohort_column_multiindex = cohort_column
-        # Save cohort column to index
-        df = df.set_index(cohort_column_multiindex).rename_axis("_cohort")
-    if numeric_only:
-        df = df.select_dtypes(include="number")
+def set_cohort_index(df, cohort_column):
+    if type(df.columns) == pd.MultiIndex:
+        cohort_column_multiindex = df.columns[df.columns.get_level_values(1) == cohort_column][0]
+    else:
+        cohort_column_multiindex = cohort_column
+    # Save cohort column to index
+    df = df.set_index(cohort_column_multiindex).rename_axis("_cohort")
+    return df
 
+
+def pivot_questions(df, header_rows, index_names):
+    # Force all values to strings so stacking doesn't make them floats
+    df = df.astype(str)
     # Stack df -> count question by value
     df = pd.get_dummies(df.stack(header_rows))
     df = df.rename_axis(index_names)
-    # Remove the record index when no cohort
-    if cohort_column is None:
-        df = df.reset_index(level=0, drop=True)
     return df
 
 
@@ -288,7 +287,7 @@ def main(_input, output, cohort_column, has_groups, legend, numeric_only, sample
     """Generates a horizonal bar graph based on likert scores (agree, disagree, etc...).
 
     INPUT expects a csv file of scores, one response per row with each question as a column.
-    OUTPUT is the filename for the generated graph (png). If multiple graphs will be created (via cohorts), a number will be appended to the filename, e.g. output.1.png.
+    OUTPUT is the filename for the generated graph (png). If multiple graphs will be created (via cohorts), a number will be appended to the filename, e.g. output_1.png.
     """
 
     if sample:
@@ -312,10 +311,19 @@ def main(_input, output, cohort_column, has_groups, legend, numeric_only, sample
     # Load the data
     results = pd.read_csv(_input, header=header_rows)
     print(f"total respondents: {results.shape[0]}")
-    if cohort_column:
-        counts = results[cohort_column].value_counts()
 
-    results = pivot_questions(results, cohort_column, header_rows, index_names, numeric_only)
+    if cohort_column is not None:
+        results = set_cohort_index(results, cohort_column)
+        counts = results.index.value_counts()
+
+    # Filter by columns with only numeric values
+    if numeric_only:
+        results = results.select_dtypes(include="number")
+
+    results = pivot_questions(results, header_rows, index_names)
+    # Remove the record index when no cohort
+    if cohort_column is None:
+        results = results.reset_index(level=0, drop=True)
     # Sort columns
     value_order = (
         [v for v in (w.strip() for w in values.split(',')) if v != ""]
@@ -356,7 +364,7 @@ def main(_input, output, cohort_column, has_groups, legend, numeric_only, sample
         by_cohort = results.groupby("_cohort", dropna=False)
         for (key, group), i in zip(by_cohort, range(1, by_cohort.ngroups + 1)):
             group = group.drop(columns="_cohort")
-            alt_output = f"{root}.{i}{ext}"
+            alt_output = f"{root}_{i}{ext}"
             title = f"{key} (n={counts.loc[key]})"
 
             fig = create_graph(group, title, colors, legend)

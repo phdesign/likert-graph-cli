@@ -23,7 +23,7 @@ Usage: likert-graph-cli [OPTIONS] INPUT OUTPUT
   INPUT expects a csv file of scores, one response per row with each
   question as a column. OUTPUT is the filename for the generated graph
   (png). If multiple graphs will be created (via cohorts), a number will be
-  appended to the filename, e.g. output.1.png.
+  appended to the filename, e.g. output_1.png.
 
 Options:
   -c, --cohort-column TEXT  Name of the column to group cohorts by. Will
