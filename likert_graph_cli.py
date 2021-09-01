@@ -7,13 +7,15 @@ import matplotlib.pyplot as plt
 import matplotlib.ticker as mtick
 import numpy as np
 import pandas as pd
-from colour import Color
+import spectra
 from matplotlib.colors import to_rgba
 
 face_color = "#f2f5fc"
 agree_color = "#3e6386"
-neutral_color = "#c7cdd0"
+# agree_color = "#427eff"
+neutral_color = "#cccccc"
 disagree_color = "#e26d34"
+# disagree_color = "#cf071f"
 
 # Subplot height is calculated from the number of questions + groups,
 # this constant adjusts the weight of those values
@@ -26,12 +28,14 @@ title_margin_adjustment = 1.2
 def blend_colors(num):
     """Generate blending from agree to disagree."""
     steps = math.floor(num / 2.0) + 1
-    agreeable_colors = list(Color(agree_color).range_to(Color(neutral_color), steps))
-    disagreeable_colors = list(Color(neutral_color).range_to(Color(disagree_color), steps))
+    agreeable_scale = spectra.scale([agree_color, neutral_color])
+    agreeable_colors = [agreeable_scale(i) for i in np.linspace(0, 1, steps)]
+    disagreeable_scale = spectra.scale([neutral_color, disagree_color])
+    disagreeable_colors = [disagreeable_scale(i) for i in np.linspace(0, 1, steps)]
     # If it's an odd number of steps then there's no neutral
     if (num % 2) == 0:
         agreeable_colors.pop()
-    return [c.hex_l for c in (agreeable_colors + disagreeable_colors[1:])]
+    return [c.hexcode for c in (agreeable_colors + disagreeable_colors[1:])]
 
 
 def contrasting_text_color(color):

@@ -19,7 +19,7 @@ setup(
         "Operating System :: OS Independent",
     ],
     python_requires=">=3.6",
-    install_requires=["click", "matplotlib~=3.3.4", "numpy", "pandas", "colour",],
+    install_requires=["click", "matplotlib~=3.3.4", "numpy", "pandas", "spectra",],
     extras_require={"dev": ["black==19.10b0", "flake8==3.8.3", "isort==4.3.21", "pytest==6.1.2", "coverage==5.3",]},
     entry_points="""
         [console_scripts]
